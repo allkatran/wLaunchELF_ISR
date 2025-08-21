@@ -22,6 +22,9 @@ typedef struct
 #define MC_ATTR_norm_file 0x8497    //file (PS2/PS1) on PS2 MC
 #define MC_ATTR_PS1_file 0x9417     //PS1 save file on PS1 MC
 
+#define HDD_ATTR_save_folder 0xC4A7      //PS2 save file folder on HDD __common partition
+#define HDD_ATTR_save_prot_folder 0xC4AF //PS2 protected save file folder on HDD __common partition
+
 #define IOCTL_RENAME 0xFEEDC0DE  //Ioctl request code for Rename function
 
 enum {
@@ -2584,6 +2587,21 @@ restart_copy:  //restart point for PM_PSU_RESTORE to reprocess modified argument
 				drawMsg(LNG(Pasting));
 			} else if (ret < 0) {
 				return -1;  //return error for failure to create destination folder
+			}
+
+			//Set save folder attributes for __common partition when copying to hdd0 to make it show up in the HDD-OSD Browser
+			if (!strncmp(outParty, "hdd0:__common", 13) && !(file.stats.AttrFile & sceMcFileAttrPDAExec)) {
+				//Calculate the out level
+				ret = 0;
+				for (i = 0; i <= strlen(out); i++) {
+					if (out[i] == '/')
+						ret++;
+				}
+				if (ret == 3) { //Only set attributes for the second-level folder (out is pfs0:/?/?/)
+					iox_stat.attr = (file.stats.AttrFile & sceMcFileAttrDupProhibit) ? HDD_ATTR_save_prot_folder : HDD_ATTR_save_folder;
+					fileXioChStat(out, &iox_stat, FIO_CST_ATTR);
+					iox_stat.attr = 0; //Reset attributes
+				}
 			}
 		}
 		//Here a destination folder, or a PSU file exists, ready to receive files
